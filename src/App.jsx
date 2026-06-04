@@ -5,6 +5,7 @@ import { supabase } from './supabase'
 // ==========================================
 // PANTALLA 1: DIRECTORIO PÚBLICO (MARKETPLACE)
 // ==========================================
+// Muestra todas las tiendas registradas y permite filtrarlas
 function DirectorioFixers() {
   const [empresas, setEmpresas] = useState([])
   const [filtroCat, setFiltroCat] = useState('Todas')
@@ -36,6 +37,7 @@ function DirectorioFixers() {
       <style>{hideScrollbarCSS}</style>
       <div className="mx-auto max-w-6xl">
         
+        {/* CABECERA DEL DIRECTORIO */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-12 gap-4 border-b border-slate-800 pb-6">
           <div>
             <h1 className="text-4xl font-black uppercase tracking-widest text-transparent bg-clip-text bg-linear-to-r from-indigo-400 to-cyan-400">
@@ -48,6 +50,7 @@ function DirectorioFixers() {
           </Link>
         </div>
 
+        {/* BUSCADOR Y FILTROS */}
         <div className="mb-8 space-y-4">
           <input 
             type="text" 
@@ -70,6 +73,7 @@ function DirectorioFixers() {
           </div>
         </div>
 
+        {/* GRILLA DE COMERCIOS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {empresasFiltradas.length === 0 ? (
             <div className="col-span-full text-center py-12 text-slate-500 font-bold uppercase tracking-widest">No se encontraron comercios en esta categoría.</div>
@@ -191,7 +195,7 @@ function LoginScreen() {
 }
 
 // ==========================================
-// PANTALLA 3: PANEL DE CONTROL SEGURO
+// PANTALLA 3: PANEL DE CONTROL SEGURO (FIXER)
 // ==========================================
 function FixerDashboard() {
   const navigate = useNavigate()
@@ -201,6 +205,9 @@ function FixerDashboard() {
   const [productos, setProductos] = useState([])
   const [pedidos, setPedidos] = useState([])
   const [subiendoImg, setSubiendoImg] = useState(false)
+  
+  // NUEVO: Estado para controlar la apertura del modal del código QR de la tienda
+  const [isModalQrOpen, setIsModalQrOpen] = useState(false)
 
   const [isModalProdOpen, setIsModalProdOpen] = useState(false)
   const [modoEdicionId, setModoEdicionId] = useState(null)
@@ -311,7 +318,7 @@ function FixerDashboard() {
   }
 
   const borrarVariante = (index) => {
-    if (formProducto.variantes.length === 1) return alert("Debe existir al menos una variante (puedes llamarla 'Estándar').")
+    if (formProducto.variantes.length === 1) return alert("Debe existir al menos una variante.")
     const nuevasVariantes = formProducto.variantes.filter((_, i) => i !== index)
     setFormProducto({...formProducto, variantes: nuevasVariantes})
   }
@@ -422,8 +429,12 @@ function FixerDashboard() {
 
   if (!usuario) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Cargando enlace...</div>
 
+  // Construcción dinámica de la URL del escaparate público de este usuario
+  const urlEscaparateTienda = `${window.location.origin}/tienda/${usuario.id}`;
+
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-indigo-950 p-4 sm:p-8 font-sans text-slate-100">
+      {/* NAVEGACIÓN */}
       <nav className="mx-auto mb-8 max-w-5xl rounded-2xl bg-slate-900/60 p-4 shadow-2xl border border-slate-700/50 backdrop-blur-md">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -443,8 +454,8 @@ function FixerDashboard() {
                 </label>
                 <select 
                   value={empresa?.categoria || 'Otros'} 
-                  onChange={manejarCambioCategoria}
-                  className="bg-slate-950 border border-slate-700 text-[10px] text-slate-400 uppercase tracking-widest rounded px-1 py-0.5 focus:outline-none focus:border-yellow-500"
+                  onChange={manejarChangeCategory => manejarCambioCategoria(manejarChangeCategory)}
+                  className="bg-slate-950 border border-slate-700 text-[10px] text-slate-400 uppercase tracking-widest rounded px-1 py-0.5 focus:outline-none focus:border-yellow-500 cursor-pointer"
                 >
                   <option value="Ropa y Moda">Ropa y Moda</option>
                   <option value="Comida y Restaurantes">Comida y Restaurantes</option>
@@ -458,7 +469,13 @@ function FixerDashboard() {
           
           <div className="flex items-center gap-2 flex-wrap justify-center">
             <button onClick={() => window.open(`/tienda/${usuario.id}`, '_blank')} className="rounded-xl px-3 py-2 text-xs font-bold text-yellow-500 border border-yellow-500/30 hover:bg-yellow-500/10 transition-all">🔗 Mi Tienda</button>
-            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/tienda/${usuario.id}`); alert('¡Link copiado!'); }} className="rounded-xl px-3 py-2 text-xs font-bold text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/10 transition-all mr-2">📋 Copiar Link</button>
+            <button onClick={() => { navigator.clipboard.writeText(urlEscaparateTienda); alert('¡Link copiado!'); }} className="rounded-xl px-3 py-2 text-xs font-bold text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/10 transition-all">📋 Copiar Link</button>
+            
+            {/* NUEVO BOTÓN: Abre el modal que genera el QR con microservicios */}
+            <button onClick={() => setIsModalQrOpen(true)} className="rounded-xl px-3 py-2 text-xs font-bold text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/10 transition-all mr-2">
+              📱 Código QR
+            </button>
+
             <div className="hidden sm:flex gap-2 border-l border-slate-700 pl-4">
               <button onClick={() => setVistaActual('inventario')} className={`rounded-xl px-4 py-2 text-sm font-bold transition-all ${vistaActual === 'inventario' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>📦 Inventario</button>
               <button onClick={() => setVistaActual('pedidos')} className={`rounded-xl px-4 py-2 text-sm font-bold transition-all ${vistaActual === 'pedidos' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>🛒 Pedidos</button>
@@ -508,7 +525,7 @@ function FixerDashboard() {
           </div>
         )}
 
-        {/* PEDIDOS (DASHBOARD) */}
+        {/* PEDIDOS */}
         {vistaActual === 'pedidos' && (
           <div>
             <div className="mb-6 flex justify-between items-center border-b border-slate-800 pb-4">
@@ -555,6 +572,44 @@ function FixerDashboard() {
         )}
       </main>
 
+      {/* --- NUEVO MODAL: GENERADOR DE CÓDIGO QR COMERCIAL --- */}
+      {isModalQrOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 p-6 rounded-3xl shadow-2xl text-center relative animate-in fade-in zoom-in-95 duration-200">
+            <button onClick={() => setIsModalQrOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">×</button>
+            
+            <h2 className="text-xl font-black text-cyan-400 uppercase tracking-widest mb-2">Código QR de Tu Tienda</h2>
+            <p className="text-xs text-slate-400 mb-6">Imprime este código o muéstralo en tu local para recibir pedidos directos.</p>
+            
+            {/* INTEGRACIÓN DE MICROSERVICIO: Generación dinámica del QR emparejado con los colores del HUB */}
+            <div className="bg-slate-950 p-4 rounded-2xl inline-block border border-slate-800 shadow-inner mb-6">
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(urlEscaparateTienda)}&color=0891b2&bgcolor=0a0f1d`} 
+                alt="Código QR de la Tienda" 
+                className="w-56 h-56 rounded-lg object-contain mx-auto"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <input 
+                type="text" 
+                readOnly 
+                value={urlEscaparateTienda} 
+                className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-center text-xs text-slate-400 select-all focus:outline-none" 
+              />
+              <p className="text-[10px] text-slate-500 italic">Haz clic dentro de la caja para seleccionar y copiar todo el enlace.</p>
+            </div>
+            
+            <button 
+              onClick={() => setIsModalQrOpen(false)} 
+              className="mt-6 w-full bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-widest py-3 rounded-xl transition-colors"
+            >
+              Cerrar Ventana
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* --- MODAL PRODUCTO DINÁMICO --- */}
       {isModalProdOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
@@ -577,6 +632,7 @@ function FixerDashboard() {
                 <input type="number" value={formProducto.precio} onChange={e => setFormProducto({...formProducto, precio: e.target.value})} className="w-full bg-slate-950/50 border border-slate-700 p-3 rounded-lg text-white focus:border-indigo-500 focus:outline-none" />
               </div>
 
+              {/* SECCIÓN DE VARIANTES DINÁMICAS */}
               <div className="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50">
                 <div className="flex justify-between items-center mb-3">
                   <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest block">Opciones / Variantes</label>
@@ -598,6 +654,7 @@ function FixerDashboard() {
                 </div>
               </div>
 
+              {/* SECCIÓN DE GALERÍA */}
               <div className="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50">
                 <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-3 flex justify-between">
                   <span>Galería de Fotos (Slide)</span>
@@ -628,6 +685,39 @@ function FixerDashboard() {
           </div>
         </div>
       )}
+
+      {/* --- MODAL PEDIDO RÁPIDO --- */}
+      {isModalPedidoOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-700 p-6 rounded-2xl shadow-2xl">
+            <h2 className="text-xl font-bold text-white mb-4">Venta Directa</h2>
+            <div className="space-y-3">
+              <input type="text" placeholder="Cliente" value={formPedido.cliente} onChange={e => setFormPedido({...formPedido, cliente: e.target.value})} className="w-full bg-slate-800 border border-slate-700 p-3 rounded-lg text-white focus:outline-none focus:border-emerald-500" />
+              <select value={formPedido.redSocial} onChange={e => setFormPedido({...formPedido, redSocial: e.target.value})} className="w-full bg-slate-800 border border-slate-700 p-3 rounded-lg text-white focus:outline-none focus:border-emerald-500">
+                <option>Local / Efectivo</option><option>Instagram</option><option>WhatsApp</option>
+              </select>
+              <select value={formPedido.productoId} onChange={e => setFormPedido({...formPedido, productoId: e.target.value, talla: ''})} className="w-full bg-slate-800 border border-slate-700 p-3 rounded-lg text-white focus:outline-none focus:border-emerald-500">
+                <option value="">-- Seleccionar Producto --</option>
+                {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+              
+              {formPedido.productoId && (
+                <div className="flex gap-2">
+                  <select value={formPedido.talla} onChange={e => setFormPedido({...formPedido, talla: e.target.value})} className="flex-2 w-full bg-slate-800 border border-slate-700 p-3 rounded-lg text-white focus:outline-none focus:border-emerald-500">
+                    <option value="">-- Opción --</option>
+                    {Object.entries(productos.find(p => p.id == formPedido.productoId)?.stock_tallas || {}).filter(entry => entry[1] > 0).map(entry => <option key={entry[0]} value={entry[0]}>{entry[0]}</option>)}
+                  </select>
+                  <input type="number" min="1" value={formPedido.cantidad} onChange={e => setFormPedido({...formPedido, cantidad: e.target.value})} className="flex-1 w-full bg-slate-800 border border-slate-700 p-3 rounded-lg text-white focus:outline-none focus:border-emerald-500" />
+                </div>
+              )}
+              <div className="flex justify-end gap-3 mt-4">
+                <button onClick={() => setIsModalPedidoOpen(false)} className="text-slate-400 px-4 py-2 hover:bg-slate-800 rounded-lg">Cancelar</button>
+                <button onClick={guardarPedidoRapido} className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold">Cobrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -640,7 +730,6 @@ function EscaparateCliente() {
   const [tienda, setTienda] = useState(null)
   const [catalogo, setCatalogo] = useState([])
   
-  // AÑADIDO: 'telefono', 'enlaceGps' y estado para carga de GPS
   const [formCompra, setFormCompra] = useState({ 
     cliente: '', telefono: '', redSocial: 'Instagram', productoId: '', talla: '', cantidad: 1, referencia: '',
     tipoPedido: 'Retiro en Tienda', direccion: '', puntoReferencia: '', enlaceGps: '', fechaReserva: '', horaReserva: '', personas: 1
@@ -665,7 +754,6 @@ function EscaparateCliente() {
     cargarTienda()
   }, [empresaId])
 
-  // LÓGICA: CAPTURA DE COORDENADAS VÍA NAVEGADOR
   const obtenerUbicacionGPS = () => {
     if (!navigator.geolocation) {
       alert("Tu navegador o teléfono no soporta la función de GPS.")
@@ -682,10 +770,10 @@ function EscaparateCliente() {
       },
       (error) => {
         console.error(error)
-        alert("No pudimos obtener tu ubicación. Por favor, asegúrate de darle permisos al navegador.")
+        alert("No pudimos obtener tu ubicación. Verifica los permisos de geolocalización.")
         setObteniendoGps(false)
       },
-      { enableHighAccuracy: true } // Pide la mayor precisión posible al celular
+      { enableHighAccuracy: true }
     )
   }
 
@@ -693,20 +781,19 @@ function EscaparateCliente() {
     e.preventDefault()
     const prodSeleccionado = catalogo.find(p => p.id === parseInt(formCompra.productoId))
     if (!prodSeleccionado || !formCompra.talla) return alert("Selecciona un producto y una opción válida.")
-    if (!formCompra.telefono) return alert("El número de teléfono es obligatorio para contactarte.")
+    if (!formCompra.telefono) return alert("El número de teléfono es obligatorio.")
     
     const cant = parseInt(formCompra.cantidad) || 1
     const tallasActuales = prodSeleccionado.stock_tallas || {}
     if ((tallasActuales[formCompra.talla] || 0) < cant) return alert("No hay suficiente stock para esa opción.")
 
-    // LÓGICA DE SERIALIZACIÓN (Fusión de datos de Delivery/Reserva y GPS)
     let detallesExtra = '';
     if (formCompra.tipoPedido === 'Delivery') {
-      if (!formCompra.direccion && !formCompra.enlaceGps) return alert("Debes ingresar una dirección escrita o capturar tu GPS.");
+      if (!formCompra.direccion && !formCompra.enlaceGps) return alert("Ingresa una dirección escrita o usa el botón de GPS.");
       const textoGps = formCompra.enlaceGps ? ` [📍 Mapa GPS: ${formCompra.enlaceGps}]` : '';
       detallesExtra = ` | 🛵 Delivery: ${formCompra.direccion} (Ref: ${formCompra.puntoReferencia})${textoGps}`;
     } else if (formCompra.tipoPedido === 'Reservar Mesa') {
-      if (!formCompra.fechaReserva || !formCompra.horaReserva) return alert("Por favor, ingresa fecha y hora de la reserva.");
+      if (!formCompra.fechaReserva || !formCompra.horaReserva) return alert("Ingresa la fecha y hora de la reserva.");
       detallesExtra = ` | 🪑 Reserva: ${formCompra.fechaReserva} a las ${formCompra.horaReserva} (${formCompra.personas} pers)`;
     } else {
       detallesExtra = ` | 🏪 ${formCompra.tipoPedido}`;
@@ -778,7 +865,7 @@ function EscaparateCliente() {
         )}
 
         <div className="grid md:grid-cols-5 gap-8 items-start">
-          
+          {/* CATÁLOGO */}
           <div className="md:col-span-3 space-y-6">
             <h2 className="text-2xl font-black text-slate-200 border-b-2 border-slate-800 pb-2 uppercase tracking-widest">Catálogo Disponible</h2>
             
@@ -830,6 +917,7 @@ function EscaparateCliente() {
             </div>
           </div>
 
+          {/* FORMULARIO DE COMPRA */}
           <div className="md:col-span-2 sticky top-8 bg-slate-900/50 p-6 sm:p-8 rounded-3xl shadow-2xl border border-slate-700/50 backdrop-blur-xl">
             <h2 className="text-xl font-black text-white mb-6 uppercase tracking-widest text-center border-b border-slate-800 pb-4">Reportar Pago y Pedido</h2>
             <form onSubmit={procesarCompra} className="space-y-5">
@@ -854,7 +942,6 @@ function EscaparateCliente() {
 
               {formCompra.tipoPedido === 'Delivery' && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 bg-slate-800/30 p-4 rounded-xl border border-slate-700/50">
-                  {/* SECCIÓN DEL GPS */}
                   <div className="bg-slate-900 border border-slate-700 p-3 rounded-lg flex items-center justify-between gap-3">
                     <div className="text-xs text-slate-300">
                       {formCompra.enlaceGps ? '✅ Ubicación fijada' : 'Adjunta tu ubicación exacta:'}
@@ -894,7 +981,6 @@ function EscaparateCliente() {
                 </div>
               )}
 
-              {/* SECCIÓN DE DATOS DE CONTACTO (NUEVO CAMPO DE TELÉFONO) */}
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Tu Nombre / Apellido</label>
@@ -916,7 +1002,7 @@ function EscaparateCliente() {
                 </div>
                 <div className="flex-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Ref. Bancaria</label>
-                  <input type="text" required placeholder="Ej. 123456" value={formCompra.referencia} onChange={e => setFormCompra({...formCompra, referencia: e.target.value})} className="w-full bg-slate-950/50 border border-slate-700 p-3 rounded-xl text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all" />
+                  <input type="text" required placeholder="Ej. 123456" value={formCompra.referencia} onChange={e => setFormCompra({...formCompra, referencia: e.target.value})} className="w-full bg-slate-950/50 border border-slate-700 p-3 rounded-xl text-slate-200 focus:outline-none focus:border-red-500 transition-all" />
                 </div>
               </div>
 
@@ -943,7 +1029,7 @@ function EscaparateCliente() {
                   </div>
                   <div className="flex-1 w-full">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Cantidad</label>
-                    <input type="number" min="1" required value={formCompra.cantidad} onChange={e => setFormCompra({...formCompra, cantidad: e.target.value})} className="w-full bg-slate-950/50 border border-slate-700 p-3 rounded-xl text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all text-center" />
+                    <input type="number" min="1" required value={formCompra.cantidad} onChange={e => setFormCompra({...formCompra, cantidad: e.target.value})} className="w-full bg-slate-950/50 border border-slate-700 p-3 rounded-xl text-slate-200 focus:outline-none focus:border-red-500 transition-all text-center" />
                   </div>
                 </div>
               )}
@@ -959,6 +1045,9 @@ function EscaparateCliente() {
   )
 }
 
+// ==========================================
+// ENRUTADOR PRINCIPAL
+// ==========================================
 export default function App() {
   return (
     <Routes>
