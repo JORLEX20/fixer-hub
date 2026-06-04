@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Routes, Route, useNavigate, useParams, Link } from 'react-router-dom'
 import { supabase } from './supabase'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
 
 // ==========================================
 // PANTALLA 1: DIRECTORIO PÚBLICO (MARKETPLACE)
 // ==========================================
-// Muestra todas las tiendas registradas y permite filtrarlas
 function DirectorioFixers() {
   const [empresas, setEmpresas] = useState([])
   const [filtroCat, setFiltroCat] = useState('Todas')
@@ -37,7 +38,6 @@ function DirectorioFixers() {
       <style>{hideScrollbarCSS}</style>
       <div className="mx-auto max-w-6xl">
         
-        {/* CABECERA DEL DIRECTORIO */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-12 gap-4 border-b border-slate-800 pb-6">
           <div>
             <h1 className="text-4xl font-black uppercase tracking-widest text-transparent bg-clip-text bg-linear-to-r from-indigo-400 to-cyan-400">
@@ -50,7 +50,6 @@ function DirectorioFixers() {
           </Link>
         </div>
 
-        {/* BUSCADOR Y FILTROS */}
         <div className="mb-8 space-y-4">
           <input 
             type="text" 
@@ -73,7 +72,6 @@ function DirectorioFixers() {
           </div>
         </div>
 
-        {/* GRILLA DE COMERCIOS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {empresasFiltradas.length === 0 ? (
             <div className="col-span-full text-center py-12 text-slate-500 font-bold uppercase tracking-widest">No se encontraron comercios en esta categoría.</div>
@@ -205,10 +203,7 @@ function FixerDashboard() {
   const [productos, setProductos] = useState([])
   const [pedidos, setPedidos] = useState([])
   const [subiendoImg, setSubiendoImg] = useState(false)
-  
-  // NUEVO: Estado para controlar la apertura del modal del código QR de la tienda
   const [isModalQrOpen, setIsModalQrOpen] = useState(false)
-
   const [isModalProdOpen, setIsModalProdOpen] = useState(false)
   const [modoEdicionId, setModoEdicionId] = useState(null)
   
@@ -427,14 +422,80 @@ function FixerDashboard() {
     verificarSesionYDatos()
   }
 
+  // === NUEVA FUNCIÓN: GENERADOR DE PDF ===
+  const generarFacturaPDF = (pedido) => {
+    // 1. Inicializamos el documento PDF (por defecto tamaño A4, formato vertical)
+    const doc = new jsPDF()
+
+    // 2. Configuración de Cabecera Corporativa
+    doc.setFontSize(24)
+    doc.setTextColor(8, 145, 178) // Color Cyan de Fixer Hub
+    const nombreEmpresa = empresa?.nombre_empresa?.toUpperCase() || 'FIXER HUB'
+    doc.text(nombreEmpresa, 14, 22)
+
+    doc.setFontSize(10)
+    doc.setTextColor(100, 100, 100)
+    doc.text(`Recibo de Contrato - Orden #${pedido.id}`, 14, 32)
+    doc.text(`Fecha de Emisión: ${new Date().toLocaleDateString('es-VE')}`, 14, 38)
+    doc.text(`Soporte Local: ${empresa?.contacto || 'Sin correo registrado'}`, 14, 44)
+
+    // Línea divisoria
+    doc.setDrawColor(200, 200, 200)
+    doc.line(14, 50, 196, 50)
+
+    // 3. Procesamiento de los Datos del Cliente (Serializados)
+    doc.setFontSize(12)
+    doc.setTextColor(20, 20, 20)
+    doc.text("Detalles del Cliente y Logística:", 14, 60)
+    
+    doc.setFontSize(10)
+    doc.setTextColor(80, 80, 80)
+    // Usamos splitTextToSize porque el string de datos GPS/Delivery puede ser muy largo y salirse del margen
+    const clienteLineas = doc.splitTextToSize(pedido.cliente, 180)
+    doc.text(clienteLineas, 14, 68)
+
+    // 4. Construcción de la Tabla de Productos usando AutoTable
+    const startY = 75 + (clienteLineas.length * 5)
+    doc.autoTable({
+      startY: startY,
+      head: [['Cant.', 'Descripción del Artículo', 'Vía Contacto', 'Total a Pagar']],
+      body: [
+        [
+          `${pedido.cantidad} und.`,
+          pedido.producto_nombre,
+          pedido.red_social,
+          `$${pedido.total.toFixed(2)}`
+        ]
+      ],
+      theme: 'striped',
+      headStyles: { fillColor: [8, 145, 178], textColor: 255, fontStyle: 'bold' },
+      styles: { fontSize: 10, cellPadding: 6 },
+    })
+
+    // 5. Pie de Página y Certificación
+    const finalY = doc.lastAutoTable.finalY || startY + 20
+    
+    // Total Resaltado
+    doc.setFontSize(14)
+    doc.setTextColor(0, 0, 0)
+    doc.text(`Monto Cancelado: $${pedido.total.toFixed(2)}`, 130, finalY + 15)
+
+    // Marcas de agua del sistema
+    doc.setFontSize(9)
+    doc.setTextColor(150, 150, 150)
+    doc.text("Gracias por apoyar el comercio local.", 14, finalY + 30)
+    doc.text("Documento generado automáticamente por la tecnología Fixer_Hub OS", 14, finalY + 36)
+
+    // 6. Disparamos la descarga en el navegador del usuario
+    doc.save(`Recibo_${nombreEmpresa.replace(/\s+/g, '_')}_Orden_${pedido.id}.pdf`)
+  }
+
   if (!usuario) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Cargando enlace...</div>
 
-  // Construcción dinámica de la URL del escaparate público de este usuario
   const urlEscaparateTienda = `${window.location.origin}/tienda/${usuario.id}`;
 
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-indigo-950 p-4 sm:p-8 font-sans text-slate-100">
-      {/* NAVEGACIÓN */}
       <nav className="mx-auto mb-8 max-w-5xl rounded-2xl bg-slate-900/60 p-4 shadow-2xl border border-slate-700/50 backdrop-blur-md">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -454,7 +515,7 @@ function FixerDashboard() {
                 </label>
                 <select 
                   value={empresa?.categoria || 'Otros'} 
-                  onChange={manejarChangeCategory => manejarCambioCategoria(manejarChangeCategory)}
+                  onChange={manejarCambioCategoria}
                   className="bg-slate-950 border border-slate-700 text-[10px] text-slate-400 uppercase tracking-widest rounded px-1 py-0.5 focus:outline-none focus:border-yellow-500 cursor-pointer"
                 >
                   <option value="Ropa y Moda">Ropa y Moda</option>
@@ -470,12 +531,7 @@ function FixerDashboard() {
           <div className="flex items-center gap-2 flex-wrap justify-center">
             <button onClick={() => window.open(`/tienda/${usuario.id}`, '_blank')} className="rounded-xl px-3 py-2 text-xs font-bold text-yellow-500 border border-yellow-500/30 hover:bg-yellow-500/10 transition-all">🔗 Mi Tienda</button>
             <button onClick={() => { navigator.clipboard.writeText(urlEscaparateTienda); alert('¡Link copiado!'); }} className="rounded-xl px-3 py-2 text-xs font-bold text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/10 transition-all">📋 Copiar Link</button>
-            
-            {/* NUEVO BOTÓN: Abre el modal que genera el QR con microservicios */}
-            <button onClick={() => setIsModalQrOpen(true)} className="rounded-xl px-3 py-2 text-xs font-bold text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/10 transition-all mr-2">
-              📱 Código QR
-            </button>
-
+            <button onClick={() => setIsModalQrOpen(true)} className="rounded-xl px-3 py-2 text-xs font-bold text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/10 transition-all mr-2">📱 Código QR</button>
             <div className="hidden sm:flex gap-2 border-l border-slate-700 pl-4">
               <button onClick={() => setVistaActual('inventario')} className={`rounded-xl px-4 py-2 text-sm font-bold transition-all ${vistaActual === 'inventario' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>📦 Inventario</button>
               <button onClick={() => setVistaActual('pedidos')} className={`rounded-xl px-4 py-2 text-sm font-bold transition-all ${vistaActual === 'pedidos' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>🛒 Pedidos</button>
@@ -554,14 +610,21 @@ function FixerDashboard() {
                         <span className="text-slate-300">{p.producto_nombre}</span>
                       </td>
                       <td className="px-6 py-4 text-yellow-500 font-black">${p.total}</td>
-                      <td className="px-6 py-4">
-                        <select value={p.estado} onChange={(e) => cambiarEstadoPedido(p, e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer shadow-inner">
+                      <td className="px-6 py-4 flex flex-col gap-2 items-start">
+                        <select value={p.estado} onChange={(e) => cambiarEstadoPedido(p, e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer shadow-inner">
                           <option value="⏳ Verificando Pago">⏳ Verificando Pago</option>
                           <option value="Pendiente">🟡 Pendiente de Envío / Ejecución</option>
                           <option value="✅ Pagado">✅ Pago Aprobado</option>
                           <option value="🚀 Entregado">🚀 Entregado / Completado</option>
                           <option value="❌ Cancelado">❌ Cancelar y Devolver Stock</option>
                         </select>
+                        
+                        {/* BOTÓN MÁGICO DE PDF (Aparece solo si está pagado o entregado) */}
+                        {(p.estado === '✅ Pagado' || p.estado === '🚀 Entregado') && (
+                          <button onClick={() => generarFacturaPDF(p)} className="w-full bg-cyan-900/40 hover:bg-cyan-600 text-cyan-400 hover:text-white border border-cyan-700/50 text-[10px] font-bold uppercase tracking-widest px-2 py-1.5 rounded transition-all">
+                            📄 Recibo PDF
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -572,38 +635,21 @@ function FixerDashboard() {
         )}
       </main>
 
-      {/* --- NUEVO MODAL: GENERADOR DE CÓDIGO QR COMERCIAL --- */}
+      {/* --- MODAL QR --- */}
       {isModalQrOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="w-full max-w-sm bg-slate-900 border border-slate-700 p-6 rounded-3xl shadow-2xl text-center relative animate-in fade-in zoom-in-95 duration-200">
             <button onClick={() => setIsModalQrOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">×</button>
-            
             <h2 className="text-xl font-black text-cyan-400 uppercase tracking-widest mb-2">Código QR de Tu Tienda</h2>
             <p className="text-xs text-slate-400 mb-6">Imprime este código o muéstralo en tu local para recibir pedidos directos.</p>
-            
-            {/* INTEGRACIÓN DE MICROSERVICIO: Generación dinámica del QR emparejado con los colores del HUB */}
             <div className="bg-slate-950 p-4 rounded-2xl inline-block border border-slate-800 shadow-inner mb-6">
-              <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(urlEscaparateTienda)}&color=0891b2&bgcolor=0a0f1d`} 
-                alt="Código QR de la Tienda" 
-                className="w-56 h-56 rounded-lg object-contain mx-auto"
-              />
+              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(urlEscaparateTienda)}&color=0891b2&bgcolor=0a0f1d`} alt="Código QR de la Tienda" className="w-56 h-56 rounded-lg object-contain mx-auto" />
             </div>
-
             <div className="space-y-2">
-              <input 
-                type="text" 
-                readOnly 
-                value={urlEscaparateTienda} 
-                className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-center text-xs text-slate-400 select-all focus:outline-none" 
-              />
+              <input type="text" readOnly value={urlEscaparateTienda} className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-center text-xs text-slate-400 select-all focus:outline-none" />
               <p className="text-[10px] text-slate-500 italic">Haz clic dentro de la caja para seleccionar y copiar todo el enlace.</p>
             </div>
-            
-            <button 
-              onClick={() => setIsModalQrOpen(false)} 
-              className="mt-6 w-full bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-widest py-3 rounded-xl transition-colors"
-            >
+            <button onClick={() => setIsModalQrOpen(false)} className="mt-6 w-full bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-widest py-3 rounded-xl transition-colors">
               Cerrar Ventana
             </button>
           </div>
@@ -632,7 +678,6 @@ function FixerDashboard() {
                 <input type="number" value={formProducto.precio} onChange={e => setFormProducto({...formProducto, precio: e.target.value})} className="w-full bg-slate-950/50 border border-slate-700 p-3 rounded-lg text-white focus:border-indigo-500 focus:outline-none" />
               </div>
 
-              {/* SECCIÓN DE VARIANTES DINÁMICAS */}
               <div className="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50">
                 <div className="flex justify-between items-center mb-3">
                   <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest block">Opciones / Variantes</label>
@@ -654,7 +699,6 @@ function FixerDashboard() {
                 </div>
               </div>
 
-              {/* SECCIÓN DE GALERÍA */}
               <div className="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50">
                 <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-3 flex justify-between">
                   <span>Galería de Fotos (Slide)</span>
@@ -1002,7 +1046,7 @@ function EscaparateCliente() {
                 </div>
                 <div className="flex-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Ref. Bancaria</label>
-                  <input type="text" required placeholder="Ej. 123456" value={formCompra.referencia} onChange={e => setFormCompra({...formCompra, referencia: e.target.value})} className="w-full bg-slate-950/50 border border-slate-700 p-3 rounded-xl text-slate-200 focus:outline-none focus:border-red-500 transition-all" />
+                  <input type="text" required placeholder="Ej. 123456" value={formCompra.referencia} onChange={e => setFormCompra({...formCompra, referencia: e.target.value})} className="w-full bg-slate-950/50 border border-slate-700 p-3 rounded-xl text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all" />
                 </div>
               </div>
 
@@ -1045,9 +1089,6 @@ function EscaparateCliente() {
   )
 }
 
-// ==========================================
-// ENRUTADOR PRINCIPAL
-// ==========================================
 export default function App() {
   return (
     <Routes>
